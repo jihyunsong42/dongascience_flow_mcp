@@ -95,7 +95,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             status: {
               type: "string",
-              enum: ["대기", "진행중", "완료", "보류", "취소"],
+              enum: ["요청", "진행", "완료", "보류", "피드백"],
               description: "업무 상태 (선택)",
             },
             keyword: {
@@ -227,15 +227,73 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
 
     case "search_tasks": {
-      // TODO: 추후 구현
-      return {
-        content: [
-          {
-            type: "text",
-            text: "검색 기능은 추후 구현 예정입니다.",
-          },
-        ],
+      const statusMap: Record<string, string> = {
+        요청: "0",
+        진행: "1",
+        완료: "2",
+        보류: "3",
+        피드백: "4",
       };
+
+      try {
+        const status = args?.status
+          ? [statusMap[args.status as string] || ""]
+          : undefined;
+        const assignee = args?.assignee as string | undefined;
+
+        const result = await flowClient.getTaskList({
+          status: status?.filter((s) => s !== ""),
+          assignee,
+        });
+
+        if (result.tasks.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: "조건에 맞는 업무가 없습니다.",
+              },
+            ],
+          };
+        }
+
+        // 업무 목록 포맷팅
+        const lines: string[] = [];
+        lines.push(
+          `# 업무 목록 (총 ${result.total}개 중 ${result.tasks.length}개 표시)`,
+        );
+        lines.push("");
+
+        result.tasks.forEach((task, i) => {
+          lines.push(`## ${i + 1}. [#${task.taskNumber}] ${task.taskName}`);
+          lines.push(`   - 상태: ${task.statusText}`);
+          lines.push(`   - 마감일: ${task.endDate || "없음"}`);
+          lines.push(`   - 프로젝트: ${task.projectName}`);
+          if (task.workers.length > 0) {
+            lines.push(`   - 담당자: ${task.workers.join(", ")}`);
+          }
+          lines.push("");
+        });
+
+        if (result.hasMore) {
+          lines.push("---");
+          lines.push("(더 많은 업무가 있습니다)");
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: lines.join("\n"),
+            },
+          ],
+        };
+      } catch (error) {
+        throw new McpError(
+          ErrorCode.InternalError,
+          `Failed to search tasks: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
 
     case "download_attachment": {

@@ -10,14 +10,14 @@ export interface FlowCredentials {
 export interface FilterRecord {
   COLUMN_SRNO: string;
   FILTER_DATA: string;
-  OPERATOR_TYPE: 'EQUAL' | 'CONTAIN' | 'BETWEEN' | 'CATEGORY';
+  OPERATOR_TYPE: "EQUAL" | "CONTAIN" | "BETWEEN" | "CATEGORY";
   USER_REC?: { USER_ID: string }[];
 }
 
 // 정렬 조건
 export interface SortRecord {
   COLUMN_SRNO: string;
-  SORT_TYPE: 'ASC' | 'DESC';
+  SORT_TYPE: "ASC" | "DESC";
 }
 
 // 업무 목록 조회 요청
@@ -349,18 +349,18 @@ export interface TaskInfo {
 
 // 상태값 매핑
 export const STATUS_MAP: Record<string, string> = {
-  '0': '대기',
-  '1': '완료',
-  '2': '보류',
-  '3': '취소',
-  '4': '진행중',
+  "0": "요청",
+  "1": "진행",
+  "2": "완료",
+  "3": "보류",
+  "4": "피드백",
 };
 
 // 우선순위 매핑
 export const PRIORITY_MAP: Record<string, string> = {
-  '': '없음',
-  '1': '낮음',
-  '2': '보통',
-  '3': '높음',
-  '4': '긴급',
+  "": "없음",
+  "1": "낮음",
+  "2": "보통",
+  "3": "높음",
+  "4": "긴급",
 };

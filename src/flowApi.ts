@@ -143,6 +143,118 @@ export class FlowApiClient {
   }
 
   /**
+   * 업무 리스트 조회
+   */
+  async getTaskList(
+    options: {
+      status?: string[]; // 상태 필터 (0: 대기, 1: 완료, 2: 보류, 4: 진행중)
+      assignee?: string; // 담당자 이메일
+      projectId?: string; // 프로젝트 ID
+      page?: number; // 페이지 번호
+    } = {},
+  ): Promise<{
+    tasks: {
+      taskNumber: string;
+      taskName: string;
+      status: string;
+      statusText: string;
+      endDate: string;
+      projectName: string;
+      projectId: string;
+      workers: string[];
+    }[];
+    hasMore: boolean;
+    total: number;
+  }> {
+    const filterRec: Record<string, unknown>[] = [];
+
+    // 담당자 필터 (기본: 본인)
+    const assignee = options.assignee || this.credentials.userId;
+    filterRec.push({
+      FILTER_DATA: assignee,
+      USER_REC: [{ USER_ID: assignee }],
+      COLUMN_SRNO: "1",
+      OPERATOR_TYPE: "EQUAL",
+    });
+
+    // 상태 필터
+    if (options.status && options.status.length > 0) {
+      for (const status of options.status) {
+        filterRec.push({
+          COLUMN_SRNO: "9",
+          FILTER_DATA: status,
+          OPERATOR_TYPE: "CATEGORY",
+        });
+      }
+    }
+
+    const requestData = {
+      USER_ID: this.credentials.userId,
+      RGSN_DTTM: this.credentials.accessToken,
+      USE_INTT_ID: this.credentials.useInttId,
+      packetOption: 2,
+      PG_NO: options.page || 1,
+      USAGE_TYPE: "ALL",
+      USAGE_FEATURE: "TASK",
+      USAGE_SRNO: -1,
+      COLABO_SRNO: options.projectId || "",
+      filterRootId: "taskFilterArea",
+      gridRootId: "taskContainerArea",
+      pageCode: "task",
+      SEARCH_WORD: "",
+      SORT_REC: [],
+      FILTER_REC: filterRec,
+    };
+
+    const response = await this.callApi<TaskListResponse>(
+      "/ACT_GRID_TASK_LIST_R001.jct",
+      requestData,
+    );
+
+    if (response.COMMON_HEAD.ERROR) {
+      throw new Error(`Flow API error: ${response.COMMON_HEAD.MESSAGE}`);
+    }
+
+    const tasks = response.TASK_REC.map((t) => {
+      const getCol = (type: string) => {
+        const col = t.TASK_COLUMN_REC.find(
+          (c) => c.DEFAULT_COLUMN_TYPE === type,
+        );
+        return col?.COLUMN_DATA_REC[0]?.CUSTOM_COLUMN_DATA || "";
+      };
+
+      const getWorkers = () => {
+        const col = t.TASK_COLUMN_REC.find(
+          (c) => c.DEFAULT_COLUMN_TYPE === "WORKER_ID",
+        );
+        return (
+          col?.COLUMN_DATA_REC.map((r) => r.USER_NM || "").filter(Boolean) || []
+        );
+      };
+
+      const status = getCol("STTS");
+      const endDt = getCol("END_DT");
+
+      return {
+        taskNumber: getCol("TASK_NUM"),
+        taskName: getCol("TASK_NM"),
+        status,
+        statusText: STATUS_MAP[status] || "알 수 없음",
+        endDate: endDt ? this.formatDate(endDt) : "",
+        projectName: t.COLABO_TTL,
+        projectId: t.COLABO_SRNO,
+        workers: getWorkers() as string[],
+      };
+    });
+
+    return {
+      tasks,
+      hasMore: response.NEXT_YN === "Y",
+      total: tasks.length,
+    };
+  }
+
+  /**
    * 업무번호로 업무 상세 정보 조회 (통합)
    */
   async getTaskByNumber(taskNumber: string): Promise<TaskInfo | null> {
