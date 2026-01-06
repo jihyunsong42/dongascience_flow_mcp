@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "flow": {
+      "command": "node",
+      "args": ["/path/to/dongascience_flow_mcp/dist/index.js"],
+      "env": {
+        "FLOW_ACCESS_TOKEN": "your_token_here",
+        "FLOW_USER_ID": "your_email@example.com",
+        "FLOW_USE_INTT_ID": "BFLOW_xxxxxxxx"
+      }
+    }
+  }
+}
