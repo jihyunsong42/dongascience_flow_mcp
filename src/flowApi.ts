@@ -7,6 +7,10 @@ import {
   STATUS_MAP,
   PRIORITY_MAP,
   CommentRecord,
+  ReplyListResponse,
+  RemarkRecord,
+  PreviousRemarksResponse,
+  PreviousRemarkRecord,
 } from "./types.js";
 
 const FLOW_BASE_URL = "https://flow.team";
@@ -126,12 +130,76 @@ export class FlowApiClient {
       COLABO_REMARK_SRNO: "-1",
       RENEWAL_YN: "Y",
       PG_NO: 1,
-      PG_PER_CNT: 1,
+      PG_PER_CNT: 100,
       COPY_YN: "N",
     };
 
     const response = await this.callApi<TaskDetailResponse>(
       "/COLABO2_R104.jct?mode=DETAIL",
+      requestData,
+    );
+
+    if (response.COMMON_HEAD.ERROR) {
+      throw new Error(`Flow API error: ${response.COMMON_HEAD.MESSAGE}`);
+    }
+
+    return response;
+  }
+
+  /**
+   * 대댓글 조회
+   */
+  async getReplies(
+    colaboSrno: string,
+    colaboCommtSrno: string,
+    colaboRemarkSrno: string,
+    rgsrUseInttId: string,
+  ): Promise<ReplyListResponse> {
+    const requestData = {
+      USER_ID: this.credentials.userId,
+      RGSN_DTTM: this.credentials.accessToken,
+      COLABO_SRNO: colaboSrno,
+      COLABO_COMMT_SRNO: colaboCommtSrno,
+      COLABO_REMARK_SRNO: colaboRemarkSrno,
+      RGSR_USE_INTT_ID: rgsrUseInttId,
+      packetOption: "PREVENT_EXECUTE",
+    };
+
+    const response = await this.callApi<ReplyListResponse>(
+      "/ACT_FETCH_REPLY_LIST.jct",
+      requestData,
+    );
+
+    if (response.COMMON_HEAD.ERROR) {
+      throw new Error(`Flow API error: ${response.COMMON_HEAD.MESSAGE}`);
+    }
+
+    return response;
+  }
+
+  /**
+   * 이전 댓글 조회 (페이지네이션)
+   */
+  async getPreviousRemarks(
+    colaboSrno: string,
+    colaboCommtSrno: string,
+    srchColaboRemarkSrno: string,
+  ): Promise<PreviousRemarksResponse> {
+    const requestData = {
+      USER_ID: this.credentials.userId,
+      RGSN_DTTM: this.credentials.accessToken,
+      MODE: "M",
+      ORDER_TYPE: "P",
+      COLABO_SRNO: colaboSrno,
+      COLABO_COMMT_SRNO: colaboCommtSrno,
+      SRCH_COLABO_REMARK_SRNO: srchColaboRemarkSrno,
+      REPEAT_DTTM: "",
+      REMARK_FILTER: "",
+      packetOption: 1,
+    };
+
+    const response = await this.callApi<PreviousRemarksResponse>(
+      "/COLABO2_REMARK_R101.jct?mode=M",
       requestData,
     );
 
@@ -275,8 +343,107 @@ export class FlowApiClient {
       return null;
     }
 
-    // 3. 정보 정제
-    return this.parseTaskInfo(task, detail.COMMT_REC[0]);
+    const comment = detail.COMMT_REC[0];
+
+    // 3. 이전 댓글 조회 (현재 REMARK_REC에 있는 가장 오래된 댓글 기준)
+    let allRemarks: RemarkRecord[] = [...(comment.REMARK_REC || [])];
+
+    // REMARK_CNT가 현재 가져온 댓글 수보다 많으면 이전 댓글 조회
+    const totalRemarkCount = parseInt(comment.REMARK_CNT, 10) || 0;
+    if (totalRemarkCount > allRemarks.length && allRemarks.length > 0) {
+      try {
+        // 가장 오래된 댓글의 SRNO를 기준으로 이전 댓글 조회
+        const oldestRemarkSrno = allRemarks[0].COLABO_REMARK_SRNO;
+        const prevResponse = await this.getPreviousRemarks(
+          comment.COLABO_SRNO,
+          comment.COLABO_COMMT_SRNO,
+          oldestRemarkSrno,
+        );
+
+        // 이전 댓글을 RemarkRecord 형태로 변환하여 앞에 추가
+        const prevRemarks: RemarkRecord[] = prevResponse.COLABO_REMARK_REC.map(
+          (r) => ({
+            MNGR_DSNC: r.MNGR_DSNC,
+            PRFL_PHTG: r.PRFL_PHTG,
+            REMARK_ATCH_REC: r.ATCH_REC,
+            REPLY_CNT: r.REPLY_CNT,
+            COLABO_COMMT_SRNO: r.COLABO_COMMT_SRNO,
+            REMARK_IMG_ATCH_REC: r.IMG_ATCH_REC,
+            EMT_CNT: r.EMT_CNT,
+            LANG: r.LANG || "",
+            RGSR_JBCL_NM: null,
+            RGSR_NM: r.RGSR_NM,
+            SELF_YN: r.SELF_YN,
+            COLABO_SRNO: r.COLABO_SRNO,
+            DELETE_YN: r.DELETE_YN,
+            RGSN_DTTM: r.RGSN_DTTM,
+            EMT_SELF_YN: r.EMT_SELF_YN,
+            REMARK_CNTN: r.REMARK_CNTN,
+            MODIFY_YN: r.MODIFY_YN,
+            SYSTEM_REMARK_YN: r.SYSTEM_REMARK_YN,
+            PIN_YN: r.PIN_YN,
+            PHTG_USE_YN: r.PHTG_USE_YN,
+            PIN_USE_YN: r.PIN_USE_YN,
+            SYS_CODE: "",
+            RGSR_ID: r.RGSR_ID,
+            CNTN: r.CNTN,
+            EDTR_DTTM: r.EDTR_DTTM,
+            COLABO_REMARK_SRNO: r.COLABO_REMARK_SRNO,
+          }),
+        );
+
+        // 이전 댓글을 앞에 추가 (시간순 정렬)
+        allRemarks = [...prevRemarks, ...allRemarks];
+      } catch {
+        // 이전 댓글 조회 실패 시 무시
+      }
+    }
+
+    // 4. 대댓글이 있는 댓글들에 대해 대댓글 조회
+    const remarksWithReplies: Map<
+      string,
+      {
+        author: string;
+        content: string;
+        createdAt: string;
+        attachments: { fileName: string; url: string }[];
+      }[]
+    > = new Map();
+
+    for (const remark of allRemarks) {
+      if (parseInt(remark.REPLY_CNT, 10) > 0) {
+        try {
+          // RGSR_USE_INTT_ID가 없으면 credentials의 useInttId 사용
+          const rgsrUseInttId =
+            remark.RGSR_USE_INTT_ID || this.credentials.useInttId;
+          const replyResponse = await this.getReplies(
+            comment.COLABO_SRNO,
+            comment.COLABO_COMMT_SRNO,
+            remark.COLABO_REMARK_SRNO,
+            rgsrUseInttId,
+          );
+
+          const replies = replyResponse.REPLY_REC.map((r) => ({
+            author: r.RGSR_NM,
+            content: r.CNTN,
+            createdAt: this.formatDate(r.RGSN_DTTM),
+            attachments:
+              r.IMG_ATCH_REC?.map((att) => ({
+                fileName: att.ORCP_FILE_NM,
+                url: att.ATCH_URL,
+              })) || [],
+          }));
+
+          remarksWithReplies.set(remark.COLABO_REMARK_SRNO, replies);
+        } catch {
+          // 대댓글 조회 실패 시 무시
+        }
+      }
+    }
+
+    // 5. 정보 정제 (allRemarks를 comment에 덮어씌움)
+    const commentWithAllRemarks = { ...comment, REMARK_REC: allRemarks };
+    return this.parseTaskInfo(task, commentWithAllRemarks, remarksWithReplies);
   }
 
   /**
@@ -340,7 +507,19 @@ export class FlowApiClient {
   /**
    * 업무 정보 파싱
    */
-  private parseTaskInfo(task: TaskRecord, comment: CommentRecord): TaskInfo {
+  private parseTaskInfo(
+    task: TaskRecord,
+    comment: CommentRecord,
+    remarksWithReplies: Map<
+      string,
+      {
+        author: string;
+        content: string;
+        createdAt: string;
+        attachments: { fileName: string; url: string }[];
+      }[]
+    >,
+  ): TaskInfo {
     const taskDetail = comment.TASK_REC[0];
     const columns = task.TASK_COLUMN_REC;
 
@@ -361,17 +540,21 @@ export class FlowApiClient {
         thumbnailUrl: att.THUM_IMG_PATH,
       })) || [];
 
-    // 댓글
+    // 댓글 (DELETE_YN은 실제 삭제 여부가 아닌 다른 용도로 사용되는 것으로 보임)
     const comments =
-      comment.REMARK_REC?.filter((r) => r.DELETE_YN !== "Y").map((r) => ({
+      comment.REMARK_REC?.map((r) => ({
         author: r.RGSR_NM,
         content: r.REMARK_CNTN,
         createdAt: this.formatDate(r.RGSN_DTTM),
+        isSystemRemark: r.SYSTEM_REMARK_YN === "Y",
+        remarkSrno: r.COLABO_REMARK_SRNO,
+        replyCount: parseInt(r.REPLY_CNT, 10) || 0,
         attachments:
           r.REMARK_IMG_ATCH_REC?.map((att) => ({
             fileName: att.ORCP_FILE_NM,
             url: att.ATCH_URL,
           })) || [],
+        replies: remarksWithReplies.get(r.COLABO_REMARK_SRNO) || [],
       })) || [];
 
     const status = taskDetail?.STTS || this.getColumnData(columns, "STTS");

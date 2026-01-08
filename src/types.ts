@@ -157,6 +157,92 @@ export interface RemarkRecord {
   CNTN: string;
   EDTR_DTTM: string;
   COLABO_REMARK_SRNO: string;
+  RGSR_USE_INTT_ID?: string;
+}
+
+// 대댓글 정보
+export interface ReplyRecord {
+  IMG_ATCH_REC: AttachmentRecord[] | null;
+  RGSN_DTTM: string;
+  REPLY_SRNO: string;
+  PRFL_PHTG: string;
+  COLABO_COMMT_SRNO: string;
+  EMT_SELF_YN: string;
+  ATCH_REC: AttachmentRecord[] | null;
+  EMT_CNT: string;
+  LANG: string;
+  ENCRYPT_YN: string;
+  RGSR_NM: string;
+  SYS_CODE: string;
+  RGSR_ID: string;
+  CNTN: string;
+  RGSR_USE_INTT_ID: string;
+  SELF_YN: string;
+  COLABO_SRNO: string;
+  COLABO_REMARK_SRNO: string;
+}
+
+// 대댓글 조회 응답
+export interface ReplyListResponse {
+  COMMON_HEAD: {
+    MESSAGE: string;
+    CODE: string;
+    ERROR: boolean;
+  };
+  REPLY_REC: ReplyRecord[];
+  BEFORE_CNT: string;
+}
+
+// 이전 댓글 조회용 레코드 (COLABO_REMARK_REC)
+export interface PreviousRemarkRecord {
+  IMG_ATCH_REC: AttachmentRecord[];
+  MNGR_DSNC: string;
+  PRFL_PHTG: string;
+  REPLY_CNT: string;
+  COLABO_COMMT_SRNO: string;
+  EMT_CNT: string;
+  LANG: string | null;
+  TIME_BEFORE: string | null;
+  RGSR_CORP_NM: string;
+  RGSR_NM: string;
+  REPLY_MOD_DEL_AUTH_YN: string;
+  RGSR_DVSN_NM: string;
+  SELF_YN: string;
+  COLABO_SRNO: string;
+  DELETE_YN: string;
+  RGSN_DTTM: string;
+  EMT_SELF_YN: string;
+  ATCH_REC: AttachmentRecord[];
+  REMARK_CNTN: string;
+  MODIFY_YN: string;
+  SYSTEM_REMARK_YN: string;
+  PIN_YN: string;
+  PHTG_USE_YN: string;
+  PIN_USE_YN: string;
+  RGSR_ID: string;
+  CNTN: string;
+  TIME_AFTER: string | null;
+  EDTR_DTTM: string;
+  COLABO_REMARK_SRNO: string;
+}
+
+// 이전 댓글 조회 응답
+export interface PreviousRemarksResponse {
+  COMMON_HEAD: {
+    MESSAGE: string;
+    CODE: string;
+    ERROR: boolean;
+  };
+  COLABO_REMARK_REC: PreviousRemarkRecord[];
+  END_YN: string | null;
+  NEXT_YN: string;
+  PREV_YN: string;
+  TOT_CNT: string;
+  AFTER_CNT: string;
+  BEFORE_CNT: string;
+  ONLY_REMARK_CNT: string;
+  REMARK_PIN_REC: unknown[];
+  AFTER_MORE_BTN_REMARK_YN: string | null;
 }
 
 // 업무 상세 정보 (게시글 내)
@@ -339,9 +425,21 @@ export interface TaskInfo {
     author: string;
     content: string;
     createdAt: string;
+    isSystemRemark: boolean;
+    remarkSrno: string;
+    replyCount: number;
     attachments: {
       fileName: string;
       url: string;
+    }[];
+    replies: {
+      author: string;
+      content: string;
+      createdAt: string;
+      attachments: {
+        fileName: string;
+        url: string;
+      }[];
     }[];
   }[];
   connectUrl: string;

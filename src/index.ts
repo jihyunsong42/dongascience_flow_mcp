@@ -590,7 +590,16 @@ function formatTaskInfo(task: {
     author: string;
     content: string;
     createdAt: string;
+    isSystemRemark: boolean;
+    remarkSrno: string;
+    replyCount: number;
     attachments: { fileName: string; url: string }[];
+    replies: {
+      author: string;
+      content: string;
+      createdAt: string;
+      attachments: { fileName: string; url: string }[];
+    }[];
   }[];
   connectUrl: string;
 }): string {
@@ -642,12 +651,27 @@ function formatTaskInfo(task: {
   if (task.comments.length > 0) {
     lines.push("## 댓글");
     task.comments.forEach((c, i) => {
-      lines.push(`### ${i + 1}. ${c.author} (${c.createdAt})`);
+      const systemTag = c.isSystemRemark ? " [시스템]" : "";
+      lines.push(`### ${i + 1}. ${c.author}${systemTag} (${c.createdAt})`);
       lines.push(c.content);
       if (c.attachments.length > 0) {
         lines.push("첨부:");
         c.attachments.forEach((att) => {
           lines.push(`  - [${att.fileName}](${att.url})`);
+        });
+      }
+      // 대댓글 표시
+      if (c.replies && c.replies.length > 0) {
+        lines.push("");
+        lines.push("**대댓글:**");
+        c.replies.forEach((r, ri) => {
+          lines.push(`> **${ri + 1}. ${r.author}** (${r.createdAt})`);
+          lines.push(`> ${r.content}`);
+          if (r.attachments.length > 0) {
+            r.attachments.forEach((att) => {
+              lines.push(`>   - [${att.fileName}](${att.url})`);
+            });
+          }
         });
       }
       lines.push("");
