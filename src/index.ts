@@ -15,21 +15,45 @@ import { FlowApiClient } from "./flowApi.js";
 import { FlowCredentials } from "./types.js";
 
 // 환경변수에서 인증 정보 로드
-function loadCredentials(): FlowCredentials {
+function loadCredentials(): {
+  credentials: FlowCredentials;
+  password?: string;
+} {
   const accessToken = process.env.FLOW_ACCESS_TOKEN;
   const userId = process.env.FLOW_USER_ID;
   const useInttId = process.env.FLOW_USE_INTT_ID;
+  const password = process.env.FLOW_PASSWORD; // 선택적
 
-  if (!accessToken || !userId || !useInttId) {
+  if (!userId) {
+    throw new Error("Missing required environment variable: FLOW_USER_ID");
+  }
+
+  // 비밀번호가 있으면 자동 로그인 가능
+  if (password) {
+    console.error("Password provided, auto-login enabled");
+    return {
+      credentials: {
+        accessToken: accessToken || "", // 비밀번호가 있으면 토큰은 선택적
+        userId,
+        useInttId: useInttId || "",
+      },
+      password,
+    };
+  }
+
+  // 비밀번호가 없으면 토큰 필수
+  if (!accessToken || !useInttId) {
     throw new Error(
-      "Missing required environment variables: FLOW_ACCESS_TOKEN, FLOW_USER_ID, FLOW_USE_INTT_ID",
+      "Missing required environment variables: FLOW_ACCESS_TOKEN, FLOW_USE_INTT_ID (or provide FLOW_PASSWORD for auto-login)",
     );
   }
 
   return {
-    accessToken,
-    userId,
-    useInttId,
+    credentials: {
+      accessToken,
+      userId,
+      useInttId,
+    },
   };
 }
 
@@ -171,8 +195,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   // 클라이언트 초기화 (지연 초기화)
   if (!flowClient) {
     try {
-      const credentials = loadCredentials();
-      flowClient = new FlowApiClient(credentials);
+      const { credentials, password } = loadCredentials();
+      flowClient = new FlowApiClient(credentials, password);
+
+      // 비밀번호가 있고 토큰이 없으면 즉시 로그인
+      if (password && !credentials.accessToken) {
+        console.error("No token provided, logging in...");
+        await flowClient.login();
+      }
     } catch (error) {
       throw new McpError(
         ErrorCode.InternalError,

@@ -11,7 +11,20 @@ npm run build
 
 ## 환경 변수 설정
 
-`.env` 파일을 생성하고 다음 정보를 입력합니다:
+`.env` 파일을 생성하고 다음 정보를 입력합니다.
+
+### 방법 1: 비밀번호 사용 (권장)
+
+**자동 로그인 기능**을 사용하면 토큰 만료 시 자동으로 재로그인됩니다.
+
+```
+FLOW_USER_ID=your_email@example.com
+FLOW_PASSWORD=your_password
+```
+
+### 방법 2: 수동 토큰 입력
+
+토큰을 직접 입력하는 방식입니다. 토큰이 만료되면 수동으로 업데이트해야 합니다.
 
 ```
 FLOW_ACCESS_TOKEN=your_token_here
@@ -19,7 +32,7 @@ FLOW_USER_ID=your_email@example.com
 FLOW_USE_INTT_ID=BFLOW_xxxxxxxx
 ```
 
-### 인증 정보 얻는 방법
+#### 인증 정보 얻는 방법
 
 1. 브라우저에서 https://flow.team 접속 후 로그인
 2. DevTools 열기 (F12)
@@ -33,6 +46,25 @@ FLOW_USE_INTT_ID=BFLOW_xxxxxxxx
 ## Claude Desktop 설정
 
 `%APPDATA%\Claude\claude_desktop_config.json` (Windows) 또는 `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac)에 다음 내용 추가:
+
+### 비밀번호 사용 시 (권장)
+
+```json
+{
+  "mcpServers": {
+    "flow": {
+      "command": "node",
+      "args": ["/path/to/dongascience_flow_mcp/dist/index.js"],
+      "env": {
+        "FLOW_USER_ID": "your_email@example.com",
+        "FLOW_PASSWORD": "your_password"
+      }
+    }
+  }
+}
+```
+
+### 토큰 사용 시
 
 ```json
 {
@@ -126,5 +158,6 @@ npm start
 
 ## 주의사항
 
-- `FLOW_ACCESS_TOKEN`은 세션 기반이라 만료될 수 있습니다. 만료 시 브라우저에서 다시 캡처해야 합니다.
-- 본인이 담당자로 지정된 업무만 조회 가능합니다.
+- **비밀번호 사용 시**: 토큰이 자동으로 갱신되므로 별도 관리가 필요 없습니다.
+- **토큰 사용 시**: `FLOW_ACCESS_TOKEN`은 세션 기반이라 만료될 수 있습니다. 만료 시 브라우저에서 다시 캡처해야 합니다.
+- 모든 업무 조회 가능 (담당자와 무관)
