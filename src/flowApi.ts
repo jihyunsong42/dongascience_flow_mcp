@@ -66,7 +66,7 @@ export class FlowApiClient {
    * 업무번호로 업무 목록 검색
    */
   async searchTaskByNumber(taskNumber: string): Promise<TaskRecord | null> {
-    // 담당자 필터 포함하여 검색 (본인 업무에서 찾기)
+    // 담당자 필터 없이 검색 (모든 업무에서 찾기)
     const requestData = {
       USER_ID: this.credentials.userId,
       RGSN_DTTM: this.credentials.accessToken,
@@ -80,16 +80,9 @@ export class FlowApiClient {
       filterRootId: "taskFilterArea",
       gridRootId: "taskContainerArea",
       pageCode: "task",
-      SEARCH_WORD: "",
+      SEARCH_WORD: taskNumber,
       SORT_REC: [],
-      FILTER_REC: [
-        {
-          FILTER_DATA: this.credentials.userId,
-          USER_REC: [{ USER_ID: this.credentials.userId }],
-          COLUMN_SRNO: "1", // 담당자 필터
-          OPERATOR_TYPE: "EQUAL",
-        },
-      ],
+      FILTER_REC: [],
     };
 
     const response = await this.callApi<TaskListResponse>(
