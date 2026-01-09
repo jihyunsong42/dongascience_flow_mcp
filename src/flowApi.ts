@@ -12,87 +12,14 @@ import {
   PreviousRemarksResponse,
   PreviousRemarkRecord,
 } from "./types.js";
-import { encryptPassword } from "./crypto.js";
-import * as crypto from "crypto";
 
 const FLOW_BASE_URL = "https://flow.team";
 
 export class FlowApiClient {
   private credentials: FlowCredentials;
-  private password?: string; // 자동 로그인을 위한 비밀번호 저장
 
-  constructor(credentials: FlowCredentials, password?: string) {
+  constructor(credentials: FlowCredentials) {
     this.credentials = credentials;
-    this.password = password;
-  }
-
-  /**
-   * 자동 로그인
-   */
-  async login(): Promise<void> {
-    if (!this.password) {
-      throw new Error("Password is required for auto-login");
-    }
-
-    // DUID 생성
-    const duid = Array.from({ length: 6 }, () =>
-      Math.floor(Math.random() * 1000000),
-    ).join("-");
-    const duidNm = `PC-CHROME_${duid}`;
-
-    // 비밀번호 암호화
-    const encryptedPwd = encryptPassword(this.password);
-
-    const loginData = {
-      USER_ID: this.credentials.userId,
-      RGSN_DTTM: "",
-      DUID: duid,
-      DUID_NM: duidNm,
-      PWD: encryptedPwd,
-      ID_GB: "1",
-      ENCRYPT_YN: "YC",
-      OBJ_CNTS_NM: "",
-      SUB_DOM: "",
-      CMPN_CD: "",
-      OTP_TYPE: "",
-      packetOption: 1,
-      CP_CODE: "",
-      AUTH_TYPE: "",
-    };
-
-    const response = await fetch(`${FLOW_BASE_URL}/COLABO2_LOGIN_R003.jct`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        Accept: "*/*",
-        Origin: FLOW_BASE_URL,
-        Referer: `${FLOW_BASE_URL}/signin.act`,
-      },
-      body: this.buildFormData(loginData),
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Login failed: ${response.status} ${response.statusText}`,
-      );
-    }
-
-    const result = (await response.json()) as {
-      COMMON_HEAD: { ERROR: boolean; MESSAGE: string };
-      USER_REC?: { RGSN_DTTM: string; USE_INTT_ID: string }[];
-    };
-
-    if (result.COMMON_HEAD.ERROR) {
-      throw new Error(`Login error: ${result.COMMON_HEAD.MESSAGE}`);
-    }
-
-    if (!result.USER_REC || result.USER_REC.length === 0) {
-      throw new Error("Login failed: No user data returned");
-    }
-
-    // 새 토큰으로 업데이트
-    this.credentials.accessToken = result.USER_REC[0].RGSN_DTTM;
-    this.credentials.useInttId = result.USER_REC[0].USE_INTT_ID;
   }
 
   /**
@@ -110,7 +37,6 @@ export class FlowApiClient {
   private async callApi<T>(
     endpoint: string,
     jsonData: Record<string, unknown>,
-    retryOnAuth = true,
   ): Promise<T> {
     const url = `${FLOW_BASE_URL}${endpoint}`;
     const body = this.buildFormData(jsonData);
@@ -127,38 +53,12 @@ export class FlowApiClient {
     });
 
     if (!response.ok) {
-      // 401 에러 시 자동 재로그인 시도
-      if (response.status === 401 && retryOnAuth && this.password) {
-        console.error("Token expired, attempting to re-login...");
-        await this.login();
-        // 재로그인 후 한 번만 재시도 (무한 루프 방지)
-        return this.callApi(endpoint, jsonData, false);
-      }
-
       throw new Error(
         `Flow API error: ${response.status} ${response.statusText}`,
       );
     }
 
     const data = (await response.json()) as T;
-
-    // API 응답에서 인증 에러 체크
-    if ((data as any).COMMON_HEAD?.ERROR) {
-      const message = (data as any).COMMON_HEAD?.MESSAGE || "";
-      // 세션 만료 메시지 감지
-      if (
-        retryOnAuth &&
-        this.password &&
-        (message.includes("로그인") ||
-          message.includes("세션") ||
-          message.includes("인증"))
-      ) {
-        console.error("Session expired, attempting to re-login...");
-        await this.login();
-        return this.callApi(endpoint, jsonData, false);
-      }
-    }
-
     return data;
   }
 
